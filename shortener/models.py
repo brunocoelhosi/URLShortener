@@ -1,11 +1,12 @@
 from django.db import models
 from secrets import token_urlsafe
+from django.utils import timezone
 
 class Links(models.Model):
     redirect_link = models.URLField()
     token = models.CharField(max_length=10, unique=True, null=True, blank=True)
     create_at = models.DateTimeField(auto_now_add=True)
-    expiration_time = models.DateTimeField(null=True, blank=True)
+    expiration_time = models.DurationField(null=True, blank=True)
     max_unique_cliques = models.PositiveBigIntegerField(null=True, blank=True)
     active = models.BooleanField(default=True)
 
@@ -14,6 +15,20 @@ class Links(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.token:
-            self.token = token_urlsafe(6)
-            
+            while True:
+                self.token = token_urlsafe(6)
+                if not Links.objects.filter(token=self.token).exists():
+                    break
+
         super().save(*args, **kwargs)
+
+    def expired(self):
+        if timezone.now() > (self.create_at + self.expiration_time):
+            return True
+        return False
+    
+class Clicks(models.Model):
+    link = models.ForeignKey(Links, on_delete=models.CASCADE)
+    ip = models.GenericIPAddressField()
+    create_at = models.DateTimeField(auto_now_add=True)
+
